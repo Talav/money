@@ -2,7 +2,6 @@
 
 [![tag](https://img.shields.io/github/tag/talav/money.svg)](https://github.com/talav/money/tags)
 [![Go Reference](https://pkg.go.dev/badge/github.com/talav/money.svg)](https://pkg.go.dev/github.com/talav/money)
-[![Go Report Card](https://goreportcard.com/badge/github.com/talav/money)](https://goreportcard.com/report/github.com/talav/money)
 [![CI](https://github.com/talav/money/workflows/Money%20CI/badge.svg)](https://github.com/talav/money/actions)
 [![codecov](https://codecov.io/gh/talav/money/graph/badge.svg)](https://codecov.io/gh/talav/money)
 [![License](https://img.shields.io/github/license/talav/money)](./LICENSE)
