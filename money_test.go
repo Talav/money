@@ -1120,7 +1120,7 @@ func TestMoneyUnmarshalJSON(t *testing.T) {
 		{name: "null leaves the amount as it was", data: `null`, want: m(t, "3 EUR")},
 		{name: "no currency", data: `{"amount":"12.50"}`, wantErr: "invalid money: currency is missing"},
 		{name: "no amount", data: `{"currency":"USD"}`, wantErr: `invalid money: invalid decimal "": must be a plain decimal number with at most 18 decimal places, such as -12.50`},
-		{name: "empty object", data: `{}`, wantErr: "invalid money: currency is missing"},
+		{name: "empty object", data: `{}`, wantErr: `invalid money: invalid decimal "": must be a plain decimal number with at most 18 decimal places, such as -12.50`},
 		{name: "amount as a JSON number", data: `{"amount":12.50,"currency":"USD"}`, wantErr: "invalid money: json: cannot unmarshal number into Go struct field moneyJSON.amount of type string"},
 		{name: "currency outside ISO 4217", data: `{"amount":"1.5","currency":"BTC"}`, wantErr: `invalid money: invalid currency "BTC": not an ISO 4217 code`},
 		{name: "text form", data: `"12.50 USD"`, wantErr: "invalid money: json: cannot unmarshal string into Go value of type money.moneyJSON"},

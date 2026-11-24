@@ -72,17 +72,12 @@ func NewMoney(amount fixed.Decimal, c currency.Currency) (Money, error) {
 // It returns an error if c is the zero Currency, or if the amount is out of
 // range.
 func NewMoneyFromMinor(minor int64, c currency.Currency) (Money, error) {
-	zero := Money{currency: c}
-	if err := zero.validate(); err != nil {
-		return Money{}, err
-	}
-
 	amount, err := fixed.NewDecimalFromInt64(minor, c.Decimals())
 	if err != nil {
 		return Money{}, fmt.Errorf("%d minor units of %s: %w", minor, c, err)
 	}
 
-	return Money{amount: amount, currency: c}, nil
+	return NewMoney(amount, c)
 }
 
 // NewMoneyFromString returns the amount of c written in s as a decimal
@@ -94,12 +89,12 @@ func NewMoneyFromMinor(minor int64, c currency.Currency) (Money, error) {
 // or if the amount is out of range. A number with more decimal places than
 // the currency has is accepted and kept; Round removes them.
 func NewMoneyFromString(s string, c currency.Currency) (Money, error) {
-	zero := Money{currency: c}
-	if err := zero.validate(); err != nil {
+	amount, err := fixed.Parse(strings.TrimSpace(s))
+	if err != nil {
 		return Money{}, err
 	}
 
-	return zero.withAmount(fixed.Parse(strings.TrimSpace(s)))
+	return NewMoney(amount, c)
 }
 
 // IsValid reports whether m is money. It is false only for the zero value,
@@ -214,7 +209,12 @@ func (m Money) Add(m2 Money) (Money, error) {
 		return Money{}, err
 	}
 
-	return m.withAmount(m.amount.Add(m2.amount))
+	amount, err := m.amount.Add(m2.amount)
+	if err != nil {
+		return Money{}, err
+	}
+
+	return Money{amount: amount, currency: m.currency}, nil
 }
 
 // Sub returns m minus m2. It returns ErrCurrencyMismatch for two currencies
@@ -224,13 +224,23 @@ func (m Money) Sub(m2 Money) (Money, error) {
 		return Money{}, err
 	}
 
-	return m.withAmount(m.amount.Sub(m2.amount))
+	amount, err := m.amount.Sub(m2.amount)
+	if err != nil {
+		return Money{}, err
+	}
+
+	return Money{amount: amount, currency: m.currency}, nil
 }
 
 // Mul returns the amount n times over: the cost of n items at m each. It
 // returns fixed.ErrOverflow if the product is out of range.
 func (m Money) Mul(n int64) (Money, error) {
-	return m.withAmount(m.amount.MulInt(n))
+	amount, err := m.amount.MulInt(n)
+	if err != nil {
+		return Money{}, err
+	}
+
+	return Money{amount: amount, currency: m.currency}, nil
 }
 
 // MulRatio returns the amount multiplied by numerator/denominator, rounded
@@ -240,7 +250,12 @@ func (m Money) Mul(n int64) (Money, error) {
 // It returns an error if the denominator is zero or the mode is unknown, and
 // fixed.ErrOverflow if the result is out of range.
 func (m Money) MulRatio(numerator, denominator int64, mode fixed.RoundingMode) (Money, error) {
-	return m.withAmount(m.amount.MulRatio(numerator, denominator, mode))
+	amount, err := m.amount.MulRatio(numerator, denominator, mode)
+	if err != nil {
+		return Money{}, err
+	}
+
+	return Money{amount: amount, currency: m.currency}, nil
 }
 
 // Div returns the amount divided by n, rounded to 18 decimal places by mode:
@@ -272,7 +287,12 @@ func (m Money) Round(mode fixed.RoundingMode) (Money, error) {
 // unknown, and fixed.ErrOverflow if rounding up takes the amount out of
 // range.
 func (m Money) RoundTo(decimals int, mode fixed.RoundingMode) (Money, error) {
-	return m.withAmount(m.amount.Round(decimals, mode))
+	amount, err := m.amount.Round(decimals, mode)
+	if err != nil {
+		return Money{}, err
+	}
+
+	return Money{amount: amount, currency: m.currency}, nil
 }
 
 // RoundToMultiple returns the amount rounded by mode to a whole number of
@@ -287,7 +307,12 @@ func (m Money) RoundToMultiple(step Money, mode fixed.RoundingMode) (Money, erro
 		return Money{}, err
 	}
 
-	return m.withAmount(m.amount.RoundToMultiple(step.amount, mode))
+	amount, err := m.amount.RoundToMultiple(step.amount, mode)
+	if err != nil {
+		return Money{}, err
+	}
+
+	return Money{amount: amount, currency: m.currency}, nil
 }
 
 // Allocate divides the amount among parties in proportion to ratios and
@@ -346,23 +371,16 @@ func (m Money) Split(parts int) ([]Money, error) {
 // positive, or if the mode is unknown, and fixed.ErrOverflow if the result
 // is out of range.
 func (m Money) Convert(to currency.Currency, numerator, denominator int64, mode fixed.RoundingMode) (Money, error) {
-	zero := Money{currency: to}
-	if err := zero.validate(); err != nil {
-		return Money{}, err
-	}
-
 	if numerator <= 0 || denominator <= 0 {
 		return Money{}, fmt.Errorf("rate %d/%d must be positive", numerator, denominator)
 	}
 
-	converted, err := m.MulRatio(numerator, denominator, mode)
+	amount, err := m.amount.MulRatio(numerator, denominator, mode)
 	if err != nil {
 		return Money{}, err
 	}
 
-	converted.currency = to
-
-	return converted, nil
+	return NewMoney(amount, to)
 }
 
 // Number returns the amount as a plain decimal number without its currency,
@@ -457,16 +475,6 @@ func (m Money) checkSameCurrency(m2 Money) error {
 	}
 
 	return nil
-}
-
-// withAmount returns the given number as an amount of m's currency. It takes
-// what an operation on a number returns, and passes its error on.
-func (m Money) withAmount(amount fixed.Decimal, err error) (Money, error) {
-	if err != nil {
-		return Money{}, err
-	}
-
-	return Money{amount: amount, currency: m.currency}, nil
 }
 
 // allocationStep returns the unit that Allocate hands out: the smallest unit
