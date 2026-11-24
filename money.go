@@ -8,6 +8,12 @@
 // Amounts of different currencies never mix: an operation on two of them
 // returns ErrCurrencyMismatch. No operation uses binary floating point.
 //
+// Add, Sub, Mul, MulRatio, Div and the rounding methods each have a Must
+// form, such as MustAdd, that returns the amount alone, so that calls chain.
+// It panics with the error that the checked method returns. Use the Must
+// forms where the currencies and the bounds are known, and the checked
+// methods for amounts that come from outside.
+//
 // Money is written as text ("12.50 USD") and as a JSON object. Reading it
 // back needs an ISO 4217 currency, because a code alone does not give the
 // decimal places of any other.
@@ -217,6 +223,12 @@ func (m Money) Add(m2 Money) (Money, error) {
 	return Money{amount: amount, currency: m.currency}, nil
 }
 
+// MustAdd returns m plus m2. It panics with the error from Add: for two
+// currencies, or for a sum out of range.
+func (m Money) MustAdd(m2 Money) Money {
+	return mustMoney(m.Add(m2))
+}
+
 // Sub returns m minus m2. It returns ErrCurrencyMismatch for two currencies
 // and fixed.ErrOverflow if the difference is out of range.
 func (m Money) Sub(m2 Money) (Money, error) {
@@ -232,6 +244,12 @@ func (m Money) Sub(m2 Money) (Money, error) {
 	return Money{amount: amount, currency: m.currency}, nil
 }
 
+// MustSub returns m minus m2. It panics with the error from Sub: for two
+// currencies, or for a difference out of range.
+func (m Money) MustSub(m2 Money) Money {
+	return mustMoney(m.Sub(m2))
+}
+
 // Mul returns the amount n times over: the cost of n items at m each. It
 // returns fixed.ErrOverflow if the product is out of range.
 func (m Money) Mul(n int64) (Money, error) {
@@ -241,6 +259,12 @@ func (m Money) Mul(n int64) (Money, error) {
 	}
 
 	return Money{amount: amount, currency: m.currency}, nil
+}
+
+// MustMul returns the amount n times over. It panics with the error from
+// Mul, for a product out of range.
+func (m Money) MustMul(n int64) Money {
+	return mustMoney(m.Mul(n))
 }
 
 // MulRatio returns the amount multiplied by numerator/denominator, rounded
@@ -258,6 +282,12 @@ func (m Money) MulRatio(numerator, denominator int64, mode fixed.RoundingMode) (
 	return Money{amount: amount, currency: m.currency}, nil
 }
 
+// MustMulRatio returns the amount multiplied by numerator/denominator,
+// rounded by mode. It panics with the error from MulRatio.
+func (m Money) MustMulRatio(numerator, denominator int64, mode fixed.RoundingMode) Money {
+	return mustMoney(m.MulRatio(numerator, denominator, mode))
+}
+
 // Div returns the amount divided by n, rounded to 18 decimal places by mode:
 // the price of one of n items that cost m together. The parts need not add
 // up to m again; Split divides an amount without losing any of it.
@@ -271,6 +301,12 @@ func (m Money) Div(n int64, mode fixed.RoundingMode) (Money, error) {
 	return m.MulRatio(1, n, mode)
 }
 
+// MustDiv returns the amount divided by n, rounded by mode. It panics with
+// the error from Div.
+func (m Money) MustDiv(n int64, mode fixed.RoundingMode) Money {
+	return mustMoney(m.Div(n, mode))
+}
+
 // Round returns the amount rounded by mode to the decimal places of its
 // currency: to cents for a currency with two.
 //
@@ -278,6 +314,12 @@ func (m Money) Div(n int64, mode fixed.RoundingMode) (Money, error) {
 // rounding up takes the amount out of range.
 func (m Money) Round(mode fixed.RoundingMode) (Money, error) {
 	return m.RoundTo(m.currency.Decimals(), mode)
+}
+
+// MustRound returns the amount rounded by mode to the decimal places of its
+// currency. It panics with the error from Round.
+func (m Money) MustRound(mode fixed.RoundingMode) Money {
+	return mustMoney(m.Round(mode))
 }
 
 // RoundTo returns the amount rounded by mode to the given number of decimal
@@ -293,6 +335,12 @@ func (m Money) RoundTo(decimals int, mode fixed.RoundingMode) (Money, error) {
 	}
 
 	return Money{amount: amount, currency: m.currency}, nil
+}
+
+// MustRoundTo returns the amount rounded by mode to the given number of
+// decimal places. It panics with the error from RoundTo.
+func (m Money) MustRoundTo(decimals int, mode fixed.RoundingMode) Money {
+	return mustMoney(m.RoundTo(decimals, mode))
 }
 
 // RoundToMultiple returns the amount rounded by mode to a whole number of
@@ -313,6 +361,12 @@ func (m Money) RoundToMultiple(step Money, mode fixed.RoundingMode) (Money, erro
 	}
 
 	return Money{amount: amount, currency: m.currency}, nil
+}
+
+// MustRoundToMultiple returns the amount rounded by mode to a whole number
+// of steps. It panics with the error from RoundToMultiple.
+func (m Money) MustRoundToMultiple(step Money, mode fixed.RoundingMode) Money {
+	return mustMoney(m.RoundToMultiple(step, mode))
 }
 
 // Allocate divides the amount among parties in proportion to ratios and
@@ -520,4 +574,14 @@ func parseMoney(text string) (Money, error) {
 	}
 
 	return m, nil
+}
+
+// mustMoney returns the amount of a checked operation, and panics with the
+// error of one that failed, so that the panic value is that error.
+func mustMoney(m Money, err error) Money {
+	if err != nil {
+		panic(err)
+	}
+
+	return m
 }

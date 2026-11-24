@@ -17,6 +17,7 @@ An amount of money for Go: exact to 18 decimal places, tied to its currency, and
 - **Overflow is an error**: no silent wrap-around
 - **Full arithmetic**: add, subtract, multiply, divide, scale by a ratio, convert
 - **Seven rounding modes**, to the currency's decimals, to any number of decimals, or to a step such as 0.05
+- **Chaining**: a `Must` form of each arithmetic and rounding method, for amounts known to be valid
 - **Allocation without loss**: split an amount into shares that always add up to it
 - **Comparable**: values work with `==` and as map keys
 - **Text and JSON**: `encoding.TextMarshaler` and `json.Marshaler`
@@ -164,6 +165,16 @@ cash, err := a.RoundToMultiple(nickel, fixed.RoundHalfUp) // to a step, such as 
 | `RoundFloor` | 2 | 3 | -3 | 2 | 2 |
 
 The modes are `fixed.RoundingMode` values. There is no default mode: the zero `RoundingMode` is rejected, so rounding is always a stated choice.
+
+### Chaining
+
+`Add`, `Sub`, `Mul`, `MulRatio`, `Div`, `Round`, `RoundTo` and `RoundToMultiple` each have a `Must` form that returns the amount alone, so that calls chain:
+
+```go
+total := price.MustMul(3).MustAdd(shipping).MustRound(fixed.RoundHalfEven)
+```
+
+A `Must` method panics with the error that its checked method returns: two currencies, a result out of range, a zero divisor or an unknown mode. Use it where the currencies and the bounds are known. Amounts that come from outside go through the checked methods.
 
 ### Allocating
 

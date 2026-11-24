@@ -818,6 +818,51 @@ func TestRoundingModes(t *testing.T) {
 	}
 }
 
+func TestMoneyMust(t *testing.T) {
+	t.Parallel()
+
+	ten, nickel, half := m(t, "10 USD"), m(t, "0.05 USD"), m(t, "0.005 USD")
+	largest, euro := m(t, "9223372036854775807 USD"), m(t, "1 EUR")
+
+	tests := []struct {
+		name      string
+		must      func() money.Money
+		want      money.Money
+		wantPanic string
+	}{
+		{name: "add", must: func() money.Money { return ten.MustAdd(nickel) }, want: m(t, "10.05 USD")},
+		{name: "add, two currencies", must: func() money.Money { return ten.MustAdd(euro) }, wantPanic: "currencies differ: USD and EUR"},
+		{name: "sub", must: func() money.Money { return ten.MustSub(nickel) }, want: m(t, "9.95 USD")},
+		{name: "sub, out of range", must: func() money.Money { return largest.MustSub(ten.Neg()) }, wantPanic: "9223372036854775807 minus -10: number out of range"},
+		{name: "mul", must: func() money.Money { return ten.MustMul(3) }, want: m(t, "30 USD")},
+		{name: "mul, out of range", must: func() money.Money { return largest.MustMul(2) }, wantPanic: "9223372036854775807 times 2: number out of range"},
+		{name: "ratio", must: func() money.Money { return ten.MustMulRatio(825, 10000, fixed.RoundHalfEven) }, want: m(t, "0.825 USD")},
+		{name: "ratio, zero denominator", must: func() money.Money { return ten.MustMulRatio(1, 0, fixed.RoundHalfEven) }, wantPanic: "10 times 1/0: division by zero"},
+		{name: "div", must: func() money.Money { return ten.MustDiv(4, fixed.RoundHalfEven) }, want: m(t, "2.50 USD")},
+		{name: "div, by zero", must: func() money.Money { return ten.MustDiv(0, fixed.RoundHalfEven) }, wantPanic: "division by zero"},
+		{name: "round", must: func() money.Money { return half.MustRound(fixed.RoundHalfUp) }, want: m(t, "0.01 USD")},
+		{name: "round, no mode", must: func() money.Money { return half.MustRound(0) }, wantPanic: "round 0.005 to 2 decimal places: unknown rounding mode 0"},
+		{name: "round to", must: func() money.Money { return half.MustRoundTo(1, fixed.RoundUp) }, want: m(t, "0.1 USD")},
+		{name: "round to, too many decimals", must: func() money.Money { return half.MustRoundTo(19, fixed.RoundUp) }, wantPanic: "decimals 19 must be in 0..18"},
+		{name: "round to multiple", must: func() money.Money { return ten.MustRoundToMultiple(m(t, "3 USD"), fixed.RoundDown) }, want: m(t, "9 USD")},
+		{name: "round to multiple, step in another currency", must: func() money.Money { return ten.MustRoundToMultiple(euro, fixed.RoundDown) }, wantPanic: "currencies differ: USD and EUR"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if tt.wantPanic != "" {
+				assert.PanicsWithError(t, tt.wantPanic, func() { tt.must() })
+
+				return
+			}
+
+			assert.Equal(t, tt.want, tt.must())
+		})
+	}
+}
+
 func TestMoneyAllocate(t *testing.T) {
 	t.Parallel()
 
