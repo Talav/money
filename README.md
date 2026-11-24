@@ -6,12 +6,12 @@
 [![codecov](https://codecov.io/gh/talav/money/graph/badge.svg)](https://codecov.io/gh/talav/money)
 [![License](https://img.shields.io/github/license/talav/money)](./LICENSE)
 
-An amount of money for Go: exact to 9 decimal places, tied to its currency, and impossible to build in an invalid state.
+An amount of money for Go: exact to 18 decimal places, tied to its currency, and impossible to build in an invalid state.
 
 ## Features
 
 - **Exact**: integer arithmetic throughout, no binary floating point
-- **9 decimal places for every currency**: a per-item price, a fee or an average keeps its fraction until you round
+- **18 decimal places for every currency**: a per-item price, a fee or an average keeps its fraction until you round
 - **Currencies never mix**: adding dollars to euros is an error, not a number
 - **Valid by construction**: constructors and operations return an error instead of an invalid amount
 - **Overflow is an error**: no silent wrap-around
@@ -30,7 +30,7 @@ Formatting for display by locale (symbols, thousands separators) is not part of 
 go get github.com/talav/money
 ```
 
-Requires Go 1.27 or later. Currencies come from [`github.com/talav/currency`](https://github.com/talav/currency).
+Requires Go 1.27 or later. Currencies come from [`github.com/talav/currency`](https://github.com/talav/currency). The number of an amount, the rounding modes and the overflow error come from [`github.com/talav/fixed`](https://github.com/talav/fixed).
 
 ## Quick Start
 
@@ -42,6 +42,7 @@ import (
     "log"
 
     "github.com/talav/currency"
+    "github.com/talav/fixed"
     "github.com/talav/money"
 )
 
@@ -61,12 +62,12 @@ func main() {
         log.Fatal(err)
     }
 
-    tax, err := total.MulRatio(825, 10000, money.RoundHalfEven) // 8.25%
+    tax, err := total.MulRatio(825, 10000, fixed.RoundHalfEven) // 8.25%
     if err != nil {
         log.Fatal(err)
     }
 
-    tax, err = tax.Round(money.RoundHalfEven)
+    tax, err = tax.Round(fixed.RoundHalfEven)
     if err != nil {
         log.Fatal(err)
     }
@@ -78,34 +79,33 @@ func main() {
 
 ## How an amount is stored
 
-An amount is two whole numbers: the units of the currency, and the nanos, which are billionths of a unit. `12.50` is 12 units and 500,000,000 nanos.
+An amount is a number and a currency. The number is a [`fixed.Decimal`](https://github.com/talav/fixed), an exact decimal number with 18 decimal places, and `Amount()` returns it.
 
-- **Precision**: 9 decimal places, the same for every currency.
+- **Precision**: 18 decimal places, the same for every currency.
 - **Range**: about ±9.2 quintillion units (the whole part fits in 63 bits).
 - **One form per amount**: equal amounts are equal with `==`.
 
 The amount is finer than what most currencies can pay. `0.0035 USD` is a valid amount; `Round` turns it into cents when the time comes.
 
-A currency with more than 9 decimal places cannot be used.
+A currency may have up to 18 decimal places, which is as many as [`currency`](https://github.com/talav/currency) allows.
 
 ## Usage
 
 ### Creating
 
 ```go
-a, err := money.NewMoneyFromString("12.50", usd)      // decimal text
-b, err := money.NewMoneyFromMinor(1250, usd)          // 1250 cents
-c, err := money.NewMoney(12, 500_000_000, usd)        // units and nanos
+a, err := money.NewMoneyFromString("12.50", usd)       // decimal text
+b, err := money.NewMoneyFromMinor(1250, usd)           // 1250 cents
+c, err := money.NewMoney(fixed.MustParse("12.5"), usd) // a fixed.Decimal
 ```
 
-`NewMoneyFromString` reads digits, an optional point with one to nine more digits, and an optional leading minus sign. It does not read thousands separators, exponents or currency symbols.
+`NewMoneyFromString` reads digits, an optional point with 1 to 18 more digits, and an optional leading minus sign. It does not read thousands separators, exponents or currency symbols.
 
 ### Reading
 
 ```go
 a.Currency() // USD
-a.Units()    // 12
-a.Nanos()    // 500000000
+a.Amount()   // 12.5, a fixed.Decimal
 a.Minor()    // 1250, nil; an error if the amount is finer than a cent
 a.Number()   // "12.50"
 a.String()   // "12.50 USD"
@@ -137,20 +137,20 @@ debit := a.Neg()
 size := a.Abs()
 
 three, err := a.Mul(3)                                    // exact
-each, err := a.Div(3, money.RoundHalfEven)                // rounded at the 9th decimal
-tax, err := a.MulRatio(825, 10000, money.RoundHalfEven)   // times 8.25%
+each, err := a.Div(3, fixed.RoundHalfEven)                // rounded at the 18th decimal
+tax, err := a.MulRatio(825, 10000, fixed.RoundHalfEven)   // times 8.25%
 ```
 
 A factor that is not a whole number is given as a ratio of two whole numbers, which states it exactly: 8.25% is 825/10000 and a third is 1/3.
 
-Every operation that can leave the range returns `money.ErrOverflow`.
+Every operation that can leave the range returns `fixed.ErrOverflow`.
 
 ### Rounding
 
 ```go
-cents, err := a.Round(money.RoundHalfEven)          // to the currency's decimals
-four, err := a.RoundTo(4, money.RoundHalfEven)      // to 4 decimals
-cash, err := a.RoundToMultiple(nickel, money.RoundHalfUp) // to a step, such as 0.05
+cents, err := a.Round(fixed.RoundHalfEven)          // to the currency's decimals
+four, err := a.RoundTo(4, fixed.RoundHalfEven)      // to 4 decimals
+cash, err := a.RoundToMultiple(nickel, fixed.RoundHalfUp) // to a step, such as 0.05
 ```
 
 | Mode | 2.5 | 3.5 | -2.5 | 2.4 | 2.6 |
@@ -163,7 +163,7 @@ cash, err := a.RoundToMultiple(nickel, money.RoundHalfUp) // to a step, such as 
 | `RoundCeiling` | 3 | 4 | -2 | 3 | 3 |
 | `RoundFloor` | 2 | 3 | -3 | 2 | 2 |
 
-There is no default mode: the zero `RoundingMode` is rejected, so rounding is always a stated choice.
+The modes are `fixed.RoundingMode` values. There is no default mode: the zero `RoundingMode` is rejected, so rounding is always a stated choice.
 
 ### Allocating
 
@@ -177,16 +177,16 @@ shares, err = hundred.Allocate(70, 20, 10)
 // 70.00 USD, 20.00 USD, 10.00 USD
 ```
 
-What the proportions leave over is handed out one smallest unit at a time, starting with the first share. The smallest unit is the currency's (a cent for USD); an amount finer than that is shared out to the nano.
+What the proportions leave over is handed out one smallest unit at a time, starting with the first share. The smallest unit is the currency's (a cent for USD); an amount finer than that is shared out to its last decimal place.
 
 ### Converting
 
 ```go
-eur, err := hundred.Convert(euro, 9214, 10000, money.RoundHalfEven) // rate 0.9214
+eur, err := hundred.Convert(euro, 9214, 10000, fixed.RoundHalfEven) // rate 0.9214
 // 92.14 EUR
 ```
 
-The result keeps its 9 decimal places; `Round` brings it to those of the new currency.
+The result keeps its 18 decimal places; `Round` brings it to those of the new currency.
 
 ### JSON
 
@@ -211,8 +211,8 @@ An amount takes two columns: a number and a currency code. That keeps the number
 ```sql
 CREATE TABLE invoices (
     id       bigint PRIMARY KEY,
-    total    numeric(28, 9) NOT NULL,
-    currency char(3)        NOT NULL
+    total    numeric(37, 18) NOT NULL,
+    currency char(3)         NOT NULL
 );
 ```
 
@@ -227,7 +227,7 @@ err = db.QueryRow(`SELECT total, currency FROM invoices WHERE id = $1`, id).Scan
 total, err := money.NewMoneyFromString(number, c)
 ```
 
-Scan the number into a `string`, never a `float64`. `numeric(28, 9)` holds the full range and all 9 decimal places.
+Scan the number into a `string`, never a `float64`. `numeric(37, 18)` holds the full range and all 18 decimal places.
 
 `Money` is deliberately not a `driver.Valuer` or `sql.Scanner`: those fill a single column, which would make one text column the easy path.
 
